@@ -1,0 +1,16 @@
+# Ignore IDE configuration files
+.idea/
+
+# Ignore zip files
+*.zip
+
+# Ignore log files
+*.log
+
+# Ignore Excel files
+*.xlsx
+
+# Ignore temporary or backup files
+~*
+
+~$*
