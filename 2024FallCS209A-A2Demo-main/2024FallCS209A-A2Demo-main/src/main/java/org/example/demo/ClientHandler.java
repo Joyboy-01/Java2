@@ -26,6 +26,7 @@ public class ClientHandler implements Runnable {
     public void setGameSession(GameSession gameSession) {
         this.gameSession = gameSession;
     }
+
     public ClientHandler(Socket socket, Server server) throws IOException {
         this.socket = socket;
         this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -60,14 +61,19 @@ public class ClientHandler implements Runnable {
                     }
                     sendMessage("RECEIVE MOVE");
                 }
-                if (message.equals("HISTORY")) {
-                    String history = getGameHistory(username);
+                if (message.startsWith("HISTORY ")) {
+                    String history = getGameHistory(message.split(" ")[1]);
                     sendMessage(history);
                 }
-                if (message.startsWith("STATUS")) {
-                    String user = message.split(" ")[1];
-                    String status = getUserStatus(user);
+                if (message.equals("STATUS")) {
+//                    String user = message.split(" ")[1];
+//                    String status = getUserStatus(user);
+                    String status = getUserStatus();
                     sendMessage(status);
+                }
+                if (message.startsWith("USER_OFFLINE ")) {
+                    setUserOffline(username);  // 更新用户状态为离线
+                    System.out.println("set"+username+"offline");
                 }
             }
         } catch (IOException e) {
@@ -130,6 +136,7 @@ public class ClientHandler implements Runnable {
     public interface MoveListener {
         void onMoveReceived(String move, ClientHandler player);
     }
+
     public void close() throws IOException {
         disconnected = true;
         if (!socket.isClosed()) {
@@ -141,6 +148,7 @@ public class ClientHandler implements Runnable {
         if (out != null) {
             out.close();
         }
+        setUserOffline(this.username);
     }
 
     public boolean registerUser(String username, String password) {
@@ -175,14 +183,17 @@ public class ClientHandler implements Runnable {
         String usersFilePath = FileManager.getUsersFilePath();
         File file = new File(usersFilePath);
         List<String> lines = new ArrayList<>();
-
+        boolean flag = false;
+        boolean flag2 = true;
         try (BufferedReader br = new BufferedReader(new FileReader(file))) {
             String line;
             while ((line = br.readLine()) != null) {
                 String[] parts = line.split(",");
                 if (parts[0].equals(username) && parts[1].equals(hashedPassword)) {
+                    if (parts[2].equals("online"))flag2 = false;
                     parts[2] = "online";
                     lines.add(String.join(",", parts));
+                    flag = true;
                     continue;
                 }
                 lines.add(line);
@@ -197,7 +208,7 @@ public class ClientHandler implements Runnable {
                 bw.write(updatedLine);
                 bw.newLine();
             }
-            return true;
+            return flag&&flag2;
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -222,22 +233,45 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    private String getUserStatus(String username) {
+//    private String getUserStatus(String username) {
+//        String usersFilePath = FileManager.getUsersFilePath();
+//        File file = new File(usersFilePath);
+//
+//        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+//            String line;
+//            while ((line = br.readLine()) != null) {
+//                String[] parts = line.split(",");
+//                if (parts[0].equals(username)) {
+//                    return "STATUS: "+username + " is " + parts[2];
+//                }
+//            }
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//        return "STATUS: User not found";
+//    }
+    private String getUserStatus() {
         String usersFilePath = FileManager.getUsersFilePath();
         File file = new File(usersFilePath);
-
+        StringBuilder allStatus = new StringBuilder();
         try (BufferedReader br = new BufferedReader(new FileReader(file))) {
             String line;
             while ((line = br.readLine()) != null) {
                 String[] parts = line.split(",");
-                if (parts[0].equals(username)) {
-                    return username + " is " + parts[2];
+                if (parts.length >= 3) {
+                    allStatus.append("STATUS: " + "User: ").append(parts[0])
+                            .append(", Status: ").append(parts[2])
+                            .append("\n");
                 }
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
-        return "User not found";
+        if (allStatus.isEmpty()) {
+            return "STATUS: No user status available";
+        }
+
+        return allStatus.toString();
     }
 
     private String getGameHistory(String username) {
@@ -250,12 +284,13 @@ public class ClientHandler implements Runnable {
             while ((line = br.readLine()) != null) {
                 String[] parts = line.split(",");
                 if (parts[0].equals(username) || parts[1].equals(username)) {
-                    history.append(line).append("\n");
+                    history.append("HISTORY: "+line).append("\n");
                 }
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
+        if (history.toString().isEmpty())return "HISTORY: no history";
         return history.toString();
     }
 
@@ -291,6 +326,33 @@ public class ClientHandler implements Runnable {
             }
         }
     }
+    private void setUserOffline(String username) {
+        String usersFilePath = FileManager.getUsersFilePath();
+        File file = new File(usersFilePath);
+        List<String> lines = new ArrayList<>();
 
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] parts = line.split(",");
+                if (parts[0].equals(username)) {
+                    parts[2] = "offline";
+                    lines.add(String.join(",", parts));
+                } else {
+                    lines.add(line);
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter(file, false))) {
+            for (String updatedLine : lines) {
+                bw.write(updatedLine);
+                bw.newLine();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 }

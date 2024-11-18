@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.VBox?>
+
+<VBox spacing="10" alignment="CENTER" xmlns="http://javafx.com/javafx/11.0.1" xmlns:fx="http://javafx.com/fxml" fx:controller="org.example.demo.DashboardController">
+    <children>
+        <Button fx:id="viewHistoryButton" text="View Game History" />
+        <Button fx:id="viewUserStatusButton" text="View User Status" />
+        <TextArea fx:id="infoTextArea" prefHeight="200.0" prefWidth="300.0" wrapText="true" editable="false"/>
+        <Button fx:id="joinGameButton" text="Join Game" />
+    </children>
+</VBox>

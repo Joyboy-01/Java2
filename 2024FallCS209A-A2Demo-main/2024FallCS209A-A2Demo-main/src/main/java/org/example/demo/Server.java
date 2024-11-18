@@ -30,6 +30,11 @@ public class Server {
 
     public synchronized void addClientWithBoard(ClientHandler client) {
         waitingQueue.add(client);
+        System.out.print("[");
+        for (ClientHandler clientHandler : waitingQueue) {
+            System.out.print(clientHandler.getUsername()+" ");
+        }
+        System.out.print("]");
         System.out.println("Client added to queue from port: " + client.getSocket().getPort());
         if (waitingQueue.size() >= 2) {
             ClientHandler player1 = waitingQueue.poll();

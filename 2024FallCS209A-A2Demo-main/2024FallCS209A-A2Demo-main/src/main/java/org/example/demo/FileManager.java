@@ -6,7 +6,7 @@ import java.io.IOException;
 public class FileManager {
     private static final String DATA_DIR = "data";  // 数据存放目录
     private static final String USERS_FILE = "2024FallCS209A-A2Demo-main/2024FallCS209A-A2Demo-main/data/users.txt";
-    private static final String HISTORY_FILE = "2024FallCS209A-A2Demo-main/2024FallCS209A-A2Demo-main/data/game_history.txt";
+    private static final String HISTORY_FILE = "2024FallCS209A-A2Demo-main/2024FallCS209A-A2Demo-main/data/history.txt";
 
     public static void initialize() {
         createFile(DATA_DIR);

@@ -52,7 +52,8 @@ public class Application extends javafx.application.Application {
         client.start();
         loginController.setOnLoginSuccess(() -> {
             try {
-                showGameScreen(stage);
+                //showGameScreen(stage);
+                showDashboardScreen(stage);
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -62,10 +63,17 @@ public class Application extends javafx.application.Application {
         stage.setTitle("登录");
         stage.setScene(loginScene);
         stage.show();
+
+        stage.setOnCloseRequest(event -> {
+            System.out.println("Application is closing...");
+            client.notifyServerUserOffline();
+            Platform.exit();
+            System.exit(0);
+        });
     }
 
 
-    private void showGameScreen(Stage stage) throws IOException {
+    protected void showGameScreen(Stage stage) throws IOException {
         int[] size = getBoardSizeFromUser();
 //        client = new Client("localhost", 1234);
         client.setOnBoardReceived(this::onBoardReceived); // Set callback for when board is received from server
@@ -84,13 +92,36 @@ public class Application extends javafx.application.Application {
 
         stage.setOnCloseRequest(event -> {
             System.out.println("Application is closing...");
+            client.notifyServerUserOffline();
             Platform.exit();
             System.exit(0);
         });
 
         stage.show();
     }
-//    @Override
+
+    private void showDashboardScreen(Stage stage) throws IOException {
+        FXMLLoader fxmlLoader = new FXMLLoader(Application.class.getResource("dashboard.fxml"));
+        VBox dashboardRoot = fxmlLoader.load();
+        DashboardController dashboardController = fxmlLoader.getController();
+        dashboardController.setClient(client);
+        dashboardController.setApplication(this);
+        client.setDashboardController(dashboardController); // 设置客户端的控制器引用
+
+        Scene dashboardScene = new Scene(dashboardRoot, 400, 400);
+        stage.setTitle("User Dashboard");
+        stage.setScene(dashboardScene);
+        stage.show();
+
+        stage.setOnCloseRequest(event -> {
+            System.out.println("Application is closing...");
+            client.notifyServerUserOffline();
+            Platform.exit();
+            System.exit(0);
+        });
+    }
+
+    //    @Override
 //    public void start(Stage stage) throws IOException {
 //
 //        StackPane rootPane = new StackPane();

@@ -34,6 +34,7 @@ public class Client {
     private final Lock lock = new ReentrantLock();
     private final Condition condition = lock.newCondition();
     private boolean responseReceived = false;
+    private DashboardController dashboardController;
 
     public Client(String host, int port) {
         try {
@@ -51,6 +52,9 @@ public class Client {
         this.controller = controller;
     }
 
+    public void setDashboardController(DashboardController dashboardController) {
+        this.dashboardController = dashboardController;
+    }
     public void start() {
         new Thread(this::listenToServer).start();
         System.out.println("Client started and listening to server...");
@@ -136,12 +140,13 @@ public class Client {
                         showGameOver("TIE");
                     });
                 }
-                if (message.equals("对手已断开连接，游戏结束。")) {
+                if (message.equals("opponent disconnected")) {
                     isMyTurn = false;
                     Platform.runLater(() -> {
                         controller.gameStatusLabel.setText("opponent disconnected");
                         showGameOver("opponent disconnected");
                     });
+                    System.out.println("opponent disconnected");
                 }
                 if (message.equals("LOGIN_SUCCESS")) {
                     lock.lock();
@@ -149,12 +154,12 @@ public class Client {
                         loginResult = true;
                         responseReceived = true;
                         System.out.println("LOGIN_SUCCESS");
-                        sendMessage("JOIN"); // 登录之后立刻加入游戏
-                        condition.signalAll(); // 唤醒等待的线程
+                        condition.signalAll();
                     } finally {
                         lock.unlock();
                     }
-                } else if (message.equals("LOGIN_FAILED")) {
+                }
+                if (message.equals("LOGIN_FAILED")) {
                     lock.lock();
                     try {
                         loginResult = false;
@@ -164,17 +169,19 @@ public class Client {
                     } finally {
                         lock.unlock();
                     }
-                } else if (message.equals("REGISTER_SUCCESS")) {
+                }
+                if (message.equals("REGISTER_SUCCESS")) {
                     lock.lock();
                     try {
                         registerResult = true;
                         responseReceived = true;
                         System.out.println("REGISTER_SUCCESS");
-                        condition.signalAll(); // 唤醒等待的线程
+                        condition.signalAll();
                     } finally {
                         lock.unlock();
                     }
-                } else if (message.equals("REGISTER_FAILED")) {
+                }
+                if (message.equals("REGISTER_FAILED")) {
                     lock.lock();
                     try {
                         registerResult = false;
@@ -183,6 +190,18 @@ public class Client {
                         condition.signalAll();
                     } finally {
                         lock.unlock();
+                    }
+                }
+                if (message.startsWith("HISTORY")) {
+                    System.out.println("receive HISTORY");
+                    if (dashboardController != null) {
+                        dashboardController.updateInfo("Game History:\n" + message.substring(9));
+                    }
+                }
+                if (message.startsWith("STATUS")) {
+                    System.out.println("receive STATUS");
+                    if (dashboardController != null) {
+                        dashboardController.updateInfo("User Status:\n" + message.substring(8));
                     }
                 }
             }
@@ -270,6 +289,9 @@ public class Client {
         this.onBoardReceivedListener = listener;
     }
 
+    public void notifyServerUserOffline() {
+        sendMessage("USER_OFFLINE ");
+    }
 
     public interface OnBoardReceivedListener {
         void onBoardReceived(int[][] board);
@@ -300,7 +322,7 @@ public class Client {
                         showAlert("重新连接成功", "您已重新连接到服务器。");
                     });
 
-                    break; // 成功重连，跳出循环
+                    break;
 
                 } catch (IOException e) {
                     System.err.println("尝试重新连接失败，第 " + retryCount + " 次");
@@ -309,16 +331,15 @@ public class Client {
                         Platform.runLater(() -> {
                             showAlert("连接失败", "无法重新连接到服务器，程序将退出。");
                         });
-
                         try {
-                            Thread.sleep(2000); // 等待2秒，确保用户看到提示
+                            Thread.sleep(2000);
                         } catch (InterruptedException ignored) {}
 
-                        System.exit(0); // 直接退出程序
+                        System.exit(0);
                     }
 
                     try {
-                        Thread.sleep(3000); // 每次尝试间隔 3 秒
+                        Thread.sleep(3000);
                     } catch (InterruptedException ignored) {}
                 }
             }

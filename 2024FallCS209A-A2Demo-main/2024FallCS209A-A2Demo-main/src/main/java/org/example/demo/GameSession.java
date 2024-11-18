@@ -178,11 +178,11 @@ public class GameSession extends Thread {
         if (player1Score > player2Score) {
             if (!player1.isDisconnected()) player1.sendMessage("GAME_OVER WIN");
             if (!player2.isDisconnected()) player2.sendMessage("GAME_OVER LOSE");
-            result = "Player1 wins";
+            result = player1.getUsername()+" wins";
         } else if (player2Score > player1Score) {
             if (!player1.isDisconnected()) player1.sendMessage("GAME_OVER LOSE");
             if (!player2.isDisconnected()) player2.sendMessage("GAME_OVER WIN");
-            result = "Player2 wins";
+            result = player2.getUsername()+" wins";
         } else {
             if (!player1.isDisconnected()) player1.sendMessage("GAME_OVER TIE");
             if (!player2.isDisconnected()) player2.sendMessage("GAME_OVER TIE");
@@ -210,16 +210,15 @@ public class GameSession extends Thread {
     }
 //    public void handleClientDisconnect(ClientHandler disconnectedPlayer) {
 //        if (disconnectedPlayer == player1) {
-//            player2.sendMessage("对手已断开连接，游戏结束。");
+//            player2.sendMessage("opponent disconnected");
 //            player2.sendMessage("GAME_OVER WIN");
 //        } else if (disconnectedPlayer == player2) {
-//            player1.sendMessage("对手已断开连接，游戏结束。");
+//            player1.sendMessage("opponent disconnected");
 //            player1.sendMessage("GAME_OVER WIN");
 //        }
 //        closeSession();
 //    }
     public void handleClientDisconnect(ClientHandler disconnectedPlayer) {
-
         lock.lock();
         try {
             logger.warning("Client disconnected from port: "
@@ -228,19 +227,23 @@ public class GameSession extends Thread {
             sessionActive = false;
             if (disconnectedPlayer == player1) {
                 if (!player2.isDisconnected()) {
-                    player2.sendMessage("对手已断开连接，游戏结束。");
+                    player2.sendMessage("opponent disconnected");
                     player2.sendMessage("GAME_OVER WIN");
                     logger.info("Client on port " + player2.getSocket().getPort() + " notified of opponent disconnection.");
+                    saveGameResult(player1.getUsername(), player2.getUsername(), player2.getUsername()+" wins because opponent disconnected");
                 } else {
                     logger.info("Both players disconnected. Ending session.");
+                    saveGameResult(player1.getUsername(), player2.getUsername(), "nobody wins because both disconnected");
                 }
             } else if (disconnectedPlayer == player2) {
                 if (!player1.isDisconnected()) {
-                    player1.sendMessage("对手已断开连接，游戏结束。");
+                    player1.sendMessage("opponent disconnected");
                     player1.sendMessage("GAME_OVER WIN");
                     logger.info("Client on port " + player1.getSocket().getPort() + " notified of opponent disconnection.");
+                    saveGameResult(player1.getUsername(), player2.getUsername(), player1.getUsername()+" wins because opponent disconnected");
                 } else {
                     logger.info("Both players disconnected. Ending session.");
+                    saveGameResult(player1.getUsername(), player2.getUsername(), "nobody wins because both disconnected");
                 }
             }
             closeSession();
@@ -267,6 +270,7 @@ public class GameSession extends Thread {
     private void saveGameResult(String player1, String player2, String result) {
         String historyFilePath = FileManager.getHistoryFilePath();
         String timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm").format(new Date());
+        System.out.println("writing into history");
         try (BufferedWriter bw = new BufferedWriter(new FileWriter(historyFilePath, true))) {
             bw.write(player1 + "," + player2 + "," + result + "," + timestamp);
             bw.newLine();
