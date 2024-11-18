@@ -18,6 +18,9 @@ import java.io.*;
 import java.net.Socket;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class Client {
     private Socket socket;
@@ -26,7 +29,11 @@ public class Client {
     private OnBoardReceivedListener onBoardReceivedListener;
     private Controller controller;
     public boolean isMyTurn = false;
-//    private int score = 0;
+    private boolean loginResult = false;
+    private boolean registerResult = false;
+    private final Lock lock = new ReentrantLock();
+    private final Condition condition = lock.newCondition();
+    private boolean responseReceived = false;
 
     public Client(String host, int port) {
         try {
@@ -47,7 +54,7 @@ public class Client {
     public void start() {
         new Thread(this::listenToServer).start();
         System.out.println("Client started and listening to server...");
-        sendMessage("JOIN");
+        //sendMessage("JOIN");
     }
 
     public void sendInitialBoard(int[][] board) {
@@ -136,12 +143,53 @@ public class Client {
                         showGameOver("opponent disconnected");
                     });
                 }
+                if (message.equals("LOGIN_SUCCESS")) {
+                    lock.lock();
+                    try {
+                        loginResult = true;
+                        responseReceived = true;
+                        System.out.println("LOGIN_SUCCESS");
+                        sendMessage("JOIN"); // 登录之后立刻加入游戏
+                        condition.signalAll(); // 唤醒等待的线程
+                    } finally {
+                        lock.unlock();
+                    }
+                } else if (message.equals("LOGIN_FAILED")) {
+                    lock.lock();
+                    try {
+                        loginResult = false;
+                        responseReceived = true;
+                        System.out.println("LOGIN_FAILED");
+                        condition.signalAll();
+                    } finally {
+                        lock.unlock();
+                    }
+                } else if (message.equals("REGISTER_SUCCESS")) {
+                    lock.lock();
+                    try {
+                        registerResult = true;
+                        responseReceived = true;
+                        System.out.println("REGISTER_SUCCESS");
+                        condition.signalAll(); // 唤醒等待的线程
+                    } finally {
+                        lock.unlock();
+                    }
+                } else if (message.equals("REGISTER_FAILED")) {
+                    lock.lock();
+                    try {
+                        registerResult = false;
+                        responseReceived = true;
+                        System.out.println("REGISTER_FAILED");
+                        condition.signalAll();
+                    } finally {
+                        lock.unlock();
+                    }
+                }
             }
         } catch (IOException e) {
             Platform.runLater(() -> {
                 showAlert("服务器断开连接", "disconnected");
             });
-
 //            reconnectToServer();
             e.printStackTrace();
         }
@@ -284,14 +332,45 @@ public class Client {
         alert.setContentText(content);
         alert.showAndWait();
     }
+
     public boolean login(String username, String password) {
         String loginMessage = "LOGIN " + username + " " + password;
         sendMessage(loginMessage);
-        return false;
+        System.out.println("logging");
+        lock.lock();
+        try {
+            responseReceived = false;
+            while (!responseReceived) {
+                condition.await();  // 等待服务器的响应
+            }
+            return loginResult;
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            return false;
+        } finally {
+            lock.unlock();
+        }
     }
+
     public boolean register(String username, String password) {
         String registerMessage = "REGISTER " + username + " " + password;
         sendMessage(registerMessage);
-        return false; // Returning false by default here for illustration
+        System.out.println("registering");
+        lock.lock();
+        try {
+            responseReceived = false;
+            System.out.println(1);
+            while (!responseReceived) {
+                System.out.println(2);
+                condition.await();  // 等待服务器的响应
+            }
+            System.out.println(3);
+            return registerResult;
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            return false;
+        } finally {
+            lock.unlock();
+        }
     }
 }

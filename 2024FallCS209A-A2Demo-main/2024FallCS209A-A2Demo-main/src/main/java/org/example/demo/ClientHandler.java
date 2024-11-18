@@ -203,6 +203,7 @@ public class ClientHandler implements Runnable {
         }
         return false;
     }
+
     public static String hashPassword(String password) {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
@@ -264,9 +265,11 @@ public class ClientHandler implements Runnable {
             String username = parts[1];
             String password = parts[2];
             if (registerUser(username, password)) {
-                out.println("REGISTER_SUCCESS");
+                sendMessage("REGISTER_SUCCESS");
+                System.out.println("REGISTER_SUCCESS");
             } else {
-                out.println("REGISTER_FAILED");
+                sendMessage("REGISTER_FAILED");
+                System.out.println("REGISTER_FAILED");
             }
         }
     }
@@ -279,10 +282,12 @@ public class ClientHandler implements Runnable {
             if (loginUser(username, password)) {
                 this.username = username;
                 this.authenticated = true;
-                out.println("LOGIN_SUCCESS");
-                server.addClientWithBoard(this); // 添加到在线用户列表中
+                sendMessage("LOGIN_SUCCESS");
+                System.out.println("LOGIN_SUCCESS");
+                //server.addClientWithBoard(this); // 添加到在线用户列表中
             } else {
-                out.println("LOGIN_FAILED");
+                sendMessage("LOGIN_FAILED");
+                System.out.println("LOGIN_FAILED");
             }
         }
     }

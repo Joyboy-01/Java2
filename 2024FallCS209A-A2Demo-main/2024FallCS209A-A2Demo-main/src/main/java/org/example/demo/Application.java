@@ -21,28 +21,7 @@ public class Application extends javafx.application.Application {
     @Override
     public void start(Stage stage) throws IOException {
         // Initialize client and connect to server
-        int[] size = getBoardSizeFromUser();
-        client = new Client("localhost", 1234);
-        client.setOnBoardReceived(this::onBoardReceived); // Set callback for when board is received from server
-        client.start();
-
-        int[][] initialBoard = SetupBoard(size[0], size[1]);
-        client.sendInitialBoard(initialBoard);
-
-        rootPane = new StackPane();
-        matchingText = new Text("Waiting for another player to join...");
-        rootPane.getChildren().add(matchingText);
-
-        Scene scene = new Scene(rootPane,500,500);
-        stage.setTitle("Matching");
-        stage.setScene(scene);
-
-        stage.setOnCloseRequest(event -> {
-            System.out.println("Application is closing...");
-            Platform.exit();
-            System.exit(0);
-        });
-        stage.show();
+        showLoginScreen(stage);
     }
 
     private void onBoardReceived(int[][] initialBoard) {
@@ -65,15 +44,13 @@ public class Application extends javafx.application.Application {
     }
 
     private void showLoginScreen(Stage stage) throws IOException {
-        // Load the login FXML and controller
         FXMLLoader fxmlLoader = new FXMLLoader(Application.class.getResource("login.fxml"));
-        StackPane loginRoot = fxmlLoader.load();
+        VBox loginRoot = fxmlLoader.load();
         LoginController loginController = fxmlLoader.getController();
-
-        // Set the client and login success callback in the controller
+        client = new Client("localhost", 1234);
         loginController.setClient(client);
+        client.start();
         loginController.setOnLoginSuccess(() -> {
-            // Once logged in, transition to the game screen
             try {
                 showGameScreen(stage);
             } catch (IOException e) {
@@ -81,19 +58,18 @@ public class Application extends javafx.application.Application {
             }
         });
 
-        // Set the login screen scene
-        Scene loginScene = new Scene(loginRoot, 400, 300);
-        stage.setTitle("Login");
+        Scene loginScene = new Scene(loginRoot, 400, 300); // 使用 VBox 作为根节点
+        stage.setTitle("登录");
         stage.setScene(loginScene);
         stage.show();
     }
 
+
     private void showGameScreen(Stage stage) throws IOException {
         int[] size = getBoardSizeFromUser();
-        client = new Client("localhost", 1234);
-
+//        client = new Client("localhost", 1234);
         client.setOnBoardReceived(this::onBoardReceived); // Set callback for when board is received from server
-        client.start();
+
 
         int[][] initialBoard = SetupBoard(size[0], size[1]);
         client.sendInitialBoard(initialBoard);
