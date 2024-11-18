@@ -48,8 +48,15 @@ public class ClientHandler implements Runnable {
                         handleLogin(message);
                     }
                 }
-                if ("JOIN".equals(message)) {
-                    sendMessage("WAITING FOR PLAYER");
+                if (message.equals("JOIN")) {
+                    sendMessage("WAITING_FOR_OPPONENT");
+                }
+                if (message.startsWith("CHALLENGE ")) {
+                    String opponentUsername = message.split(" ")[1];
+                    server.handleChallenge(this, opponentUsername);
+                }
+                if (message.equals("GET_QUEUE")) {
+                    server.sendQueueToClient(this);
                 }
                 if (message.startsWith("INIT_BOARD")) {
                     initialBoard = parseBoard(message);

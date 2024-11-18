@@ -6,3 +6,7 @@
 111,wangzishuo,nobody wins because both disconnected,2024-11-18 16:48
 1,111,1 wins because opponent disconnected,2024-11-18 16:58
 1,111,nobody wins because both disconnected,2024-11-18 16:58
+1,111,1 wins because opponent disconnected,2024-11-18 19:57
+1,111,nobody wins because both disconnected,2024-11-18 19:57
+111,1,1 wins because opponent disconnected,2024-11-18 20:01
+111,1,nobody wins because both disconnected,2024-11-18 20:01

@@ -16,7 +16,9 @@ import javafx.util.Duration;
 
 import java.io.*;
 import java.net.Socket;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -35,6 +37,7 @@ public class Client {
     private final Condition condition = lock.newCondition();
     private boolean responseReceived = false;
     private DashboardController dashboardController;
+    private List<String> queue = new ArrayList<>();
 
     public Client(String host, int port) {
         try {
@@ -48,6 +51,11 @@ public class Client {
         }
     }
 
+    public List<String> getQueue() {
+        synchronized (queue) {
+            return new ArrayList<>(queue);
+        }
+    }
     public void setController(Controller controller) {
         this.controller = controller;
     }
@@ -70,6 +78,19 @@ public class Client {
         String message;
         try {
             while ((message = in.readLine()) != null) {
+                if (message.startsWith("QUEUE")) {
+                    String[] parts = message.split(" ");
+                    synchronized (queue) {
+                        queue.clear();
+                        for (int i = 1; i < parts.length; i++) {
+                            queue.add(parts[i]);
+                        }
+                    }
+                    System.out.println("Queue updated: " + queue);
+                }
+//                if (message.equals("FIND_OPPONENT")) {
+//                    dashboardController.startGame();
+//                }
                 if (message.startsWith("INIT_BOARD")) {
                     int[][] board = parseBoard(message);
                     if (onBoardReceivedListener != null) {
@@ -362,7 +383,7 @@ public class Client {
         try {
             responseReceived = false;
             while (!responseReceived) {
-                condition.await();  // 等待服务器的响应
+                condition.await();
             }
             return loginResult;
         } catch (InterruptedException e) {

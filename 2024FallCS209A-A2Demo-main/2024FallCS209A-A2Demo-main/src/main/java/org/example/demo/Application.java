@@ -72,34 +72,6 @@ public class Application extends javafx.application.Application {
         });
     }
 
-
-    protected void showGameScreen(Stage stage) throws IOException {
-        int[] size = getBoardSizeFromUser();
-//        client = new Client("localhost", 1234);
-        client.setOnBoardReceived(this::onBoardReceived); // Set callback for when board is received from server
-
-
-        int[][] initialBoard = SetupBoard(size[0], size[1]);
-        client.sendInitialBoard(initialBoard);
-
-        rootPane = new StackPane();
-        matchingText = new Text("Waiting for another player to join...");
-        rootPane.getChildren().add(matchingText);
-
-        Scene scene = new Scene(rootPane,500,500);
-        stage.setTitle("Matching");
-        stage.setScene(scene);
-
-        stage.setOnCloseRequest(event -> {
-            System.out.println("Application is closing...");
-            client.notifyServerUserOffline();
-            Platform.exit();
-            System.exit(0);
-        });
-
-        stage.show();
-    }
-
     private void showDashboardScreen(Stage stage) throws IOException {
         FXMLLoader fxmlLoader = new FXMLLoader(Application.class.getResource("dashboard.fxml"));
         VBox dashboardRoot = fxmlLoader.load();
@@ -119,6 +91,28 @@ public class Application extends javafx.application.Application {
             Platform.exit();
             System.exit(0);
         });
+    }
+
+    protected void showGameScreen(Stage stage) throws IOException {
+        int[] size = getBoardSizeFromUser();
+//        client = new Client("localhost", 1234);
+        client.setOnBoardReceived(this::onBoardReceived); // Set callback for when board is received from server
+        int[][] initialBoard = SetupBoard(size[0], size[1]);
+        client.sendInitialBoard(initialBoard);
+        rootPane = new StackPane();
+        matchingText = new Text("Waiting for another player to join...");
+        rootPane.getChildren().add(matchingText);
+        Scene scene = new Scene(rootPane,500,500);
+        stage.setTitle("Matching");
+        stage.setScene(scene);
+        stage.setOnCloseRequest(_ -> {
+            System.out.println("Application is closing...");
+            client.notifyServerUserOffline();
+            Platform.exit();
+            System.exit(0);
+        });
+
+        stage.show();
     }
 
     //    @Override

@@ -264,7 +264,7 @@ public class GameSession extends Thread {
             e.printStackTrace();
         }
         logger.info("Session resources released at " + new Date());
-        System.out.println("会话资源已释放");
+        System.out.println("resources released");
     }
 
     private void saveGameResult(String player1, String player2, String result) {
