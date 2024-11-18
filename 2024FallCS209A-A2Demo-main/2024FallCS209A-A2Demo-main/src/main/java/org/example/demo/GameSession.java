@@ -145,7 +145,6 @@ public class GameSession extends Thread {
     }
 
     private boolean isGameOver() {
-        // 检查棋盘是否已经满
         for (int[] row : game.board) {
             for (int cell : row) {
                 if (cell != 0) {

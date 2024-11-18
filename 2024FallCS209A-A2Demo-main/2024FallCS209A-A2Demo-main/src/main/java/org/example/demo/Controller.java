@@ -87,11 +87,6 @@ public class Controller {
                 position[0] = 1;
             }else{
                 position[0] = 0;
-                List<int[]> path = game.getPath(position[1], position[2], row, col);
-                if (!path.isEmpty()) {
-                    drawPath(path);
-                    handleValidMove(position[1], position[2], row, col);
-                }
                 if (client != null) {
                     System.out.println("send to server"+" MOVE " + row + " " + col+" "+position[1]+" "+position[2]);
                     client.sendMessage("MOVE " + row + " " + col+" "+position[1]+" "+position[2]); // 将用户的操作上传给服务器
@@ -126,6 +121,12 @@ public class Controller {
         button2.setGraphic(null);
         button1.setDisable(true);
         button2.setDisable(true);
+
+        List<int[]> path = game.getPath(row1, col1, row2, col2);
+        if (!path.isEmpty()) {
+            drawPath(path);
+            //handleValidMove(position[1], position[2], row, col);
+        }
 //        updateScore();
 //        if (checkGameOver())showGameOver();
 
@@ -167,7 +168,6 @@ public class Controller {
     private void drawPath(List<int[]> path) {
         linePane.getChildren().clear(); // 每次绘制前清空连线
 
-        // 绘制新连线
         for (int i = 0; i < path.size() - 1; i++) {
             int[] start = path.get(i);
             int[] end = path.get(i + 1);
@@ -186,7 +186,6 @@ public class Controller {
             linePane.getChildren().add(line);
         }
 
-        // 延迟移除连线
         PauseTransition pause = new PauseTransition(Duration.seconds(0.5));
         pause.setOnFinished(_ -> linePane.getChildren().clear());
         pause.play();
@@ -196,29 +195,6 @@ public class Controller {
         Button button = (Button) gameBoard.getChildren().get(row * game.col + col);
         return button.localToParent(button.getBoundsInLocal());
     }
-
-//    private void showGameOver() {
-//
-//        Dialog<Void> dialog = new Dialog<>();
-//        dialog.setTitle("GAME OVER");
-//        dialog.setHeaderText("END");
-//        dialog.setContentText("THANKS FOR PLAYING");
-//
-//        ButtonType okButton = new ButtonType("YES", ButtonBar.ButtonData.OK_DONE);
-//        dialog.getDialogPane().getButtonTypes().add(okButton);
-//
-//        dialog.showAndWait(); // 显示对话框，等待用户点击“确定”
-//    }
-//    private void showError(String message) {
-//        Dialog<Void> dialog = new Dialog<>();
-//        dialog.setTitle("ERROR");
-//        dialog.setHeaderText("ERROR");
-//        dialog.setContentText(message);
-//
-//        ButtonType okButton = new ButtonType("YES", ButtonBar.ButtonData.OK_DONE);
-//        dialog.getDialogPane().getButtonTypes().add(okButton);
-//        dialog.show();
-//    }
 
     public static Image imageApple = new Image(Objects.requireNonNull(Game.class.getResource("/org/example/demo/apple.png")).toExternalForm());
     public static Image imageMango = new Image(Objects.requireNonNull(Game.class.getResource("/org/example/demo/mango.png")).toExternalForm());
