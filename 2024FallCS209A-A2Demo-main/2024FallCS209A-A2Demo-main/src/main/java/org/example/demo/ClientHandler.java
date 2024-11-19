@@ -1,6 +1,7 @@
 package org.example.demo;
 
 import java.io.*;
+import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -10,9 +11,9 @@ import java.util.Arrays;
 import java.util.List;
 
 public class ClientHandler implements Runnable {
-    private final Socket socket;
-    private final BufferedReader in;
-    private final PrintWriter out;
+    private Socket socket;
+    private BufferedReader in;
+    private PrintWriter out;
     private final Server server;
     private int[][] initialBoard;
     private MoveListener MoveListener;
@@ -44,8 +45,10 @@ public class ClientHandler implements Runnable {
                 if (!authenticated) {
                     if (message.startsWith("REGISTER")) {
                         handleRegister(message);
-                    } else if (message.startsWith("LOGIN")) {
+                    }else if (message.startsWith("LOGIN")) {
                         handleLogin(message);
+                    }else if (message.startsWith("RECONNECT")) {
+                        handleReconnect(message);
                     }
                 }
                 if (message.equals("JOIN")) {
@@ -82,15 +85,23 @@ public class ClientHandler implements Runnable {
                     setUserOffline(username);  // 更新用户状态为离线
                     System.out.println("set"+username+"offline");
                 }
+                if (message.equals("CONFIRM_BOARD_RECEIVED")) {
+                    GameSession session = server.getActiveGameSession(this.getUsername());
+                    if (session != null) {
+                        session.continueRestoreState(this); // 调用新的方法来恢复其他状态
+                    }
+                }
             }
         } catch (IOException e) {
             disconnected = true;
+            System.out.println(username + " disconnected. Waiting for reconnection...");
+            //server.addDisconnectedClient(this); // 将断开的用户加入重连队列
+            waitForReconnection(); // 等待重连
             e.printStackTrace();
         } finally {
             try {
-                System.out.println("Client disconnected from port: " + socket.getPort());
+                System.out.println("Client did not reconnect in time, disconnecting: " + socket.getPort());
                 socket.close();
-                server.removeClientFromQueue(this);
                 if (gameSession != null) {
                     gameSession.handleClientDisconnect(this);
                 }
@@ -140,6 +151,11 @@ public class ClientHandler implements Runnable {
     public void setMoveListener(MoveListener moveListener) {
         this.MoveListener = moveListener;
     }
+
+    public Server getServer() {
+        return this.server;
+    }
+
     public interface MoveListener {
         void onMoveReceived(String move, ClientHandler player);
     }
@@ -210,6 +226,7 @@ public class ClientHandler implements Runnable {
             return false;
         }
 
+
         try (BufferedWriter bw = new BufferedWriter(new FileWriter(file, false))) {
             for (String updatedLine : lines) {
                 bw.write(updatedLine);
@@ -220,6 +237,29 @@ public class ClientHandler implements Runnable {
             e.printStackTrace();
         }
         return false;
+    }
+
+    public boolean reconnectUser(String username, String password) {
+        String hashedPassword = hashPassword(password);
+        String usersFilePath = FileManager.getUsersFilePath();
+        File file = new File(usersFilePath);
+        boolean flag = false;
+        boolean flag2 = true;
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] parts = line.split(",");
+                if (parts[0].equals(username) && parts[1].equals(hashedPassword)) {
+                    if (parts[2].equals("online"))flag2 = false;
+                    parts[2] = "online";
+                    flag = true;
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+        return flag&&flag2;
     }
 
     public static String hashPassword(String password) {
@@ -321,6 +361,11 @@ public class ClientHandler implements Runnable {
         if (parts.length == 3) {
             String username = parts[1];
             String password = parts[2];
+//            if (server.isDisconnectedClient(username)) {
+//                sendMessage("LOGIN_FAILED_ALREADY_DISCONNECTED");
+//                System.out.println("User " + username + " is in disconnected state. Use RECONNECT.");
+//                return;
+//            }
             if (loginUser(username, password)) {
                 this.username = username;
                 this.authenticated = true;
@@ -330,6 +375,23 @@ public class ClientHandler implements Runnable {
             } else {
                 sendMessage("LOGIN_FAILED");
                 System.out.println("LOGIN_FAILED");
+            }
+        }
+    }
+
+    private void handleReconnect(String message) {
+        String[] parts = message.split(" ");
+        if (parts.length == 3) {
+            String username = parts[1];
+            String password = parts[2];
+            if (reconnectUser(username, password)&&server.reconnectClient(username, this)) {
+                this.authenticated = true;
+                this.username = username;
+                sendMessage("RECONNECT_SUCCESS");
+                System.out.println(username + " successfully reconnected.");
+            } else {
+                sendMessage("RECONNECT_FAILED");
+                System.out.println("Reconnection failed for user: " + username);
             }
         }
     }
@@ -362,4 +424,22 @@ public class ClientHandler implements Runnable {
             e.printStackTrace();
         }
     }
+    private void waitForReconnection() {
+        long waitStart = System.currentTimeMillis();
+        long timeout = 30 * 1000; // 等待 30 秒
+        while (System.currentTimeMillis() - waitStart < timeout) {
+            if (!disconnected) {
+                System.out.println(username + " reconnected.");
+                return;
+            }
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        System.out.println("Reconnection timeout for " + username);
+    }
+
 }

@@ -4,6 +4,7 @@ import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.Random;
 import java.util.concurrent.locks.Condition;
@@ -26,6 +27,23 @@ public class GameSession extends Thread {
     private volatile boolean moveProcessed = false;
     private volatile boolean sessionActive = true;
 
+    private int[][] savedBoard;
+    private int savedPlayer1Score;
+    private int savedPlayer2Score;
+    private boolean isPlayer1Turn; // 记录轮到谁
+
+    // 保存状态
+    private void saveState() {
+        savedBoard = Arrays.stream(game.board)
+                .map(int[]::clone)
+                .toArray(int[][]::new);
+        savedPlayer1Score = player1Score;
+        savedPlayer2Score = player2Score;
+        isPlayer1Turn = player1Turn;
+    }
+
+
+
     static {
         try {
             FileHandler fileHandler = new FileHandler("2024FallCS209A-A2Demo-main/2024FallCS209A-A2Demo-main/src/main/java/org/example/demo/session.log", true);
@@ -44,6 +62,11 @@ public class GameSession extends Thread {
         this.player1Turn = new Random().nextBoolean();
         player1.setMoveListener(this::onMoveReceived);
         player2.setMoveListener(this::onMoveReceived);
+        Server server = player1.getServer();
+        server.registerGameSession(player1.getUsername(), this);
+        server.registerGameSession(player2.getUsername(), this);
+        saveState();
+        System.out.println("Game session created for " + player1.getUsername() + " and " + player2.getUsername());
 
         logger.info("Game session created between clients on ports: "
                 + player1.getSocket().getPort() + " and " + player2.getSocket().getPort()
@@ -123,6 +146,7 @@ public class GameSession extends Thread {
             String validMoveMessage = "VALID_MOVE " + row1 + " " + col1 + " " + row2 + " " + col2;
             player1.sendMessage(validMoveMessage);
             player2.sendMessage(validMoveMessage);
+            saveState();
             broadcastScore();
         } else {
             player.sendMessage("INVALID_MOVE");
@@ -134,7 +158,7 @@ public class GameSession extends Thread {
         game.board[row2][col2] = 0;
     }
 
-    private void broadcastBoard() {
+    protected void broadcastBoard() {
         player1.sendBoard(game.board);//, player1Turn ? "YOUR_TURN" : "WAIT");
         player2.sendBoard(game.board);//, player1Turn ? "WAIT" : "YOUR_TURN");
     }
@@ -187,7 +211,15 @@ public class GameSession extends Thread {
             if (!player2.isDisconnected()) player2.sendMessage("GAME_OVER TIE");
             result = "tie";
         }
+        player1.getServer().removeGameSession(player1.getUsername());
+        player2.getServer().removeGameSession(player2.getUsername());
         saveGameResult(player1.getUsername(), player2.getUsername(), result);
+        try {
+            player1.close();
+            player2.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         logger.info("Game session ended between ports " + player1.getSocket().getPort() + " and " + player2.getSocket().getPort() + " at " + new Date());
     }
 
@@ -223,34 +255,53 @@ public class GameSession extends Thread {
             logger.warning("Client disconnected from port: "
                     + disconnectedPlayer.getSocket().getPort() + " at " + new Date());
 
+            saveState();
+
             sessionActive = false;
-            if (disconnectedPlayer == player1) {
-                if (!player2.isDisconnected()) {
-                    player2.sendMessage("opponent disconnected");
-                    player2.sendMessage("GAME_OVER WIN");
-                    logger.info("Client on port " + player2.getSocket().getPort() + " notified of opponent disconnection.");
-                    saveGameResult(player1.getUsername(), player2.getUsername(), player2.getUsername()+" wins because opponent disconnected");
-                } else {
-                    logger.info("Both players disconnected. Ending session.");
-                    saveGameResult(player1.getUsername(), player2.getUsername(), "nobody wins because both disconnected");
-                }
-            } else if (disconnectedPlayer == player2) {
-                if (!player1.isDisconnected()) {
-                    player1.sendMessage("opponent disconnected");
-                    player1.sendMessage("GAME_OVER WIN");
-                    logger.info("Client on port " + player1.getSocket().getPort() + " notified of opponent disconnection.");
-                    saveGameResult(player1.getUsername(), player2.getUsername(), player1.getUsername()+" wins because opponent disconnected");
-                } else {
-                    logger.info("Both players disconnected. Ending session.");
-                    saveGameResult(player1.getUsername(), player2.getUsername(), "nobody wins because both disconnected");
-                }
+            disconnectedPlayer.sendMessage("DISCONNECTED_WAITING");
+            boolean reconnected = waitForReconnection(disconnectedPlayer);
+            if (reconnected) {
+                logger.info(disconnectedPlayer.getUsername() + " reconnected. Game resumed.");
+                sessionActive = true;
+                return;
             }
+
+            ClientHandler otherPlayer = (disconnectedPlayer == player1) ? player2 : player1;
+            if (otherPlayer != null && !otherPlayer.isDisconnected()) {
+                otherPlayer.sendMessage("GAME_OVER WIN");
+                logger.info("Opponent won due to disconnection of " + disconnectedPlayer.getUsername());
+            }
+            saveGameResult(player1.getUsername(), player2.getUsername(), "Game ended due to disconnection");
             closeSession();
+
+//            if (disconnectedPlayer == player1) {
+//                if (!player2.isDisconnected()) {
+//                    player2.sendMessage("opponent disconnected");
+//                    player2.sendMessage("GAME_OVER WIN");
+//                    logger.info("Client on port " + player2.getSocket().getPort() + " notified of opponent disconnection.");
+//                    saveGameResult(player1.getUsername(), player2.getUsername(), player2.getUsername()+" wins because opponent disconnected");
+//                } else {
+//                    logger.info("Both players disconnected. Ending session.");
+//                    saveGameResult(player1.getUsername(), player2.getUsername(), "nobody wins because both disconnected");
+//                }
+//            } else if (disconnectedPlayer == player2) {
+//                if (!player1.isDisconnected()) {
+//                    player1.sendMessage("opponent disconnected");
+//                    player1.sendMessage("GAME_OVER WIN");
+//                    logger.info("Client on port " + player1.getSocket().getPort() + " notified of opponent disconnection.");
+//                    saveGameResult(player1.getUsername(), player2.getUsername(), player1.getUsername()+" wins because opponent disconnected");
+//                } else {
+//                    logger.info("Both players disconnected. Ending session.");
+//                    saveGameResult(player1.getUsername(), player2.getUsername(), "nobody wins because both disconnected");
+//                }
+//            }
+//            closeSession();
         } finally {
             lock.unlock();
         }
     }
-    private void closeSession() {
+
+    void closeSession() {
         try {
             if (player1 != null && !player1.isDisconnected()) {
                 player1.close();
@@ -277,4 +328,75 @@ public class GameSession extends Thread {
             e.printStackTrace();
         }
     }
+
+
+    private boolean waitForReconnection(ClientHandler player) {
+        long waitStart = System.currentTimeMillis();
+        long timeout = 30 * 1000; // 等待 30 秒
+        while (System.currentTimeMillis() - waitStart < timeout) {
+            if (!player.isDisconnected()) {
+                return true; // 玩家已重新连接
+            }
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        return false; // 超时未重新连接
+    }
+
+    public void onPlayerReconnect(ClientHandler reconnectingPlayer) {
+        lock.lock();
+        try {
+            restoreState(reconnectingPlayer);
+            logger.info(reconnectingPlayer.getUsername() + " reconnected.");
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    // 恢复状态
+    private void restoreState(ClientHandler reconnectingPlayer) {
+        if (reconnectingPlayer == null) {
+            System.err.println("No player to restore state for.");
+            return;
+        }
+        System.out.println("Restoring state for player: " + reconnectingPlayer.getUsername());
+        if (savedBoard != null) {
+            StringBuilder boardStr = new StringBuilder("BOARD " + " ");
+            for (int i = 0; i < savedBoard.length; i++) {
+                for (int cell : savedBoard[i]) {
+                    boardStr.append(cell).append(" ");
+                }
+                boardStr.append(";");
+            }
+            reconnectingPlayer.sendMessage("BOARD_RECONNECT " + boardStr);
+        } else {
+            reconnectingPlayer.sendMessage("BOARD_RECONNECT_FAILED");
+            System.err.println("Failed to restore board state for player: " + reconnectingPlayer.getUsername());
+        }
+    }
+
+
+    public void continueRestoreState(ClientHandler reconnectingPlayer) {
+        lock.lock();
+        try {
+            if (reconnectingPlayer == player1) {
+                reconnectingPlayer.sendMessage("SCORE " + savedPlayer1Score);
+            } else {
+                reconnectingPlayer.sendMessage("SCORE " + savedPlayer2Score);
+            }
+
+            if ((reconnectingPlayer == player1 && isPlayer1Turn) || (reconnectingPlayer == player2 && !isPlayer1Turn)) {
+                reconnectingPlayer.sendMessage("YOUR_TURN"); // 通知当前玩家轮到他
+            } else {
+                reconnectingPlayer.sendMessage("WAIT"); // 通知对方玩家等待
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+
 }

@@ -42,6 +42,25 @@ public class Application extends javafx.application.Application {
             }
         });
     }
+    private void onBoardReceived_reconnect(int[][] initialBoard) {
+        System.out.println("Board received, updating UI...");
+        Platform.runLater(() -> {
+            try {
+                rootPane.getChildren().clear();
+                Controller.game = new Game(initialBoard);
+                FXMLLoader fxmlLoader = new FXMLLoader(Application.class.getResource("board.fxml"));
+                VBox gameRoot = fxmlLoader.load();
+                Controller controller = fxmlLoader.getController();
+                controller.initialize(client);
+                client.setController(controller);
+                controller.createGameBoard();
+                rootPane.getChildren().add(gameRoot);
+                client.sendMessage("CONFIRM_BOARD_RECEIVED");
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
+    }
 
     private void showLoginScreen(Stage stage) throws IOException {
         FXMLLoader fxmlLoader = new FXMLLoader(Application.class.getResource("login.fxml"));
@@ -57,6 +76,17 @@ public class Application extends javafx.application.Application {
             } catch (IOException e) {
                 e.printStackTrace();
             }
+        });
+
+        loginController.setOnReconnectSuccess(() -> {
+            rootPane = new StackPane();
+            matchingText = new Text("Reconnecting and fetching game state...");
+            rootPane.getChildren().add(matchingText);
+            Scene scene = new Scene(rootPane, 500, 500);
+            stage.setTitle("Reconnecting");
+            stage.setScene(scene);
+            stage.show();
+            client.setOnBoardReceived(this::onBoardReceived_reconnect);
         });
 
         Scene loginScene = new Scene(loginRoot, 400, 300); // 使用 VBox 作为根节点

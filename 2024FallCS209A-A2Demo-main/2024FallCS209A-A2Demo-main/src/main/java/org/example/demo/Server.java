@@ -3,18 +3,28 @@ package org.example.demo;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.Map;
 import java.util.Queue;
 
 public class Server {
     private static final int PORT = 1234;
     protected static final Queue<ClientHandler> waitingQueue = new LinkedList<>();
+    private final Map<String, GameSession> activeSessions = new HashMap<>();
 
     public static void main(String[] args) {
         new Server().start();
     }
 
     public void start() {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println("Server shutting down, closing all sessions...");
+            for (GameSession session : activeSessions.values()) {
+                session.closeSession(); // 确保所有会话正确关闭
+            }
+        }));
+
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
             System.out.println("Server started on port " + PORT);
             while (true) {
@@ -87,4 +97,31 @@ public class Server {
         }
     }
 
+    public synchronized void registerGameSession(String username, GameSession session) {
+        activeSessions.put(username, session);
+    }
+
+    public synchronized GameSession getActiveGameSession(String username) {
+        return activeSessions.get(username);
+    }
+
+    public synchronized boolean reconnectClient(String username, ClientHandler handler) {
+        GameSession session = getActiveGameSession(username);
+        if (session != null) {
+            session.onPlayerReconnect(handler);
+            return true;
+        }
+        return false;
+    }
+
+    public synchronized void removeGameSession(String username) {
+        if (activeSessions.remove(username) != null) {
+            System.out.println("Game session for user " + username + " removed from activeSessions.");
+        } else {
+            System.out.println("No active game session found for user " + username + ".");
+        }
+    }
+
 }
+//bug是游戏结束退出也要等待重连
+//server异常结束应该设置玩家offline

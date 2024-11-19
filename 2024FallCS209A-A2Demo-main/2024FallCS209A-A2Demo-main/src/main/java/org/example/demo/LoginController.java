@@ -15,6 +15,7 @@ public class LoginController {
 
     private Client client;
     private Runnable onLoginSuccess;
+    private Runnable onReconnectSuccess;
 
     public void setClient(Client client) {
         this.client = client;
@@ -24,12 +25,21 @@ public class LoginController {
         this.onLoginSuccess = onLoginSuccess;
     }
 
+    public void setOnReconnectSuccess(Runnable onReconnectSuccess) {
+        this.onReconnectSuccess = onReconnectSuccess;
+    }
+
     @FXML
     public void initialize() {
         loginButton.setOnAction(event -> {
             String username = usernameField.getText();
             String password = passwordField.getText();
-            if (client != null && client.login(username, password)) {
+            if (client != null && client.reconnect(username, password)) {
+                System.out.println("reconnect successful");
+                if (onReconnectSuccess != null) {
+                    onReconnectSuccess.run();
+                }
+            }else if (client != null && client.login(username, password)) {
                 System.out.println("Login successful");
                 if (onLoginSuccess != null) {
                     onLoginSuccess.run();

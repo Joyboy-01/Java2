@@ -31,6 +31,7 @@ public class Client {
     private OnBoardReceivedListener onBoardReceivedListener;
     private Controller controller;
     public boolean isMyTurn = false;
+    private boolean reconnectResult = false;
     private boolean loginResult = false;
     private boolean registerResult = false;
     private final Lock lock = new ReentrantLock();
@@ -131,12 +132,20 @@ public class Client {
                         System.out.println("Waiting for opponent");
                     });
                 }
-                if (message.startsWith("BOARD")) {
+
+                if (message.startsWith("BOARD_RECONNECT")) {
+                    message = message.replace("BOARD_RECONNECT", "BOARD");
+                    int[][] board = parseBoard(message);
+                    if (onBoardReceivedListener != null) {
+                        onBoardReceivedListener.onBoardReceived(board);
+                    }
+                }else if (message.startsWith("BOARD")) {
                     int[][] board = parseBoard(message);
                     if (onBoardReceivedListener != null) {
                         onBoardReceivedListener.onBoardReceived(board);
                     }
                 }
+
                 if (message.startsWith("MATCH")) {
                     Platform.runLater(this::showCountdownWindow);
                 }
@@ -219,18 +228,35 @@ public class Client {
                         dashboardController.updateInfo("Game History:\n" + message.substring(9));
                     }
                 }
-                if (message.startsWith("STATUS")) {
-                    System.out.println("receive STATUS");
-                    if (dashboardController != null) {
-                        dashboardController.updateInfo("User Status:\n" + message.substring(8));
+                if (message.equals("RECONNECT_FAILED")) {
+                    lock.lock();
+                    try {
+                        reconnectResult = false;
+                        responseReceived = true;
+                        System.out.println("RECONNECT_FAILED received from server");
+                        condition.signalAll();
+                    } finally {
+                        lock.unlock();
+                    }
+                }
+                if (message.equals("RECONNECT_SUCCESS")) {
+                    lock.lock();
+                    try {
+                        reconnectResult = true;
+                        responseReceived = true;
+                        System.out.println("RECONNECT_SUCCESS received from server");
+                        condition.signalAll();
+                    } finally {
+                        lock.unlock();
                     }
                 }
             }
         } catch (IOException e) {
             Platform.runLater(() -> {
-                showAlert("服务器断开连接", "disconnected");
+                showAlert("disconnected", "Disconnected from server, trying to reconnect...");
             });
-//            reconnectToServer();
+
+            System.err.println("Disconnected from server, trying to reconnect...");
             e.printStackTrace();
         }
     }
@@ -328,44 +354,7 @@ public class Client {
         }
         return boardStr.toString();
     }
-    private void reconnectToServer() {
-        new Thread(() -> {
-            int retryCount = 0; // 初始化重试次数
-            int maxRetries = 5; // 设置最大重试次数
 
-            while (retryCount < maxRetries) {
-                try {
-                    retryCount++;
-                    in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                    out = new PrintWriter(socket.getOutputStream(), true);
-
-                    Platform.runLater(() -> {
-                        showAlert("重新连接成功", "您已重新连接到服务器。");
-                    });
-
-                    break;
-
-                } catch (IOException e) {
-                    System.err.println("尝试重新连接失败，第 " + retryCount + " 次");
-
-                    if (retryCount >= maxRetries) {
-                        Platform.runLater(() -> {
-                            showAlert("连接失败", "无法重新连接到服务器，程序将退出。");
-                        });
-                        try {
-                            Thread.sleep(2000);
-                        } catch (InterruptedException ignored) {}
-
-                        System.exit(0);
-                    }
-
-                    try {
-                        Thread.sleep(3000);
-                    } catch (InterruptedException ignored) {}
-                }
-            }
-        }).start();
-    }
 
     private void showAlert(String title, String content) {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
@@ -375,6 +364,37 @@ public class Client {
         alert.showAndWait();
     }
 
+    public boolean register(String username, String password) {
+        String registerMessage = "REGISTER " + username + " " + password;
+        sendMessage(registerMessage);
+        System.out.println("registering");
+        lock.lock();
+        try {
+            responseReceived = false;
+            System.out.println(1);
+            while (!responseReceived) {
+                System.out.println(2);
+                condition.await();  // 等待服务器的响应
+            }
+            System.out.println(3);
+            return registerResult;
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            return false;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+//    public boolean tryReconnectOrLogin(String username, String password) {
+//        if (reconnect(username,password)) {
+//            System.out.println("Reconnected successfully.");
+//            return true;
+//        } else {
+//            System.out.println("Reconnect failed. Attempting login...");
+//            return login(username, password);
+//        }
+//    }
     public boolean login(String username, String password) {
         String loginMessage = "LOGIN " + username + " " + password;
         sendMessage(loginMessage);
@@ -393,21 +413,16 @@ public class Client {
             lock.unlock();
         }
     }
-
-    public boolean register(String username, String password) {
-        String registerMessage = "REGISTER " + username + " " + password;
-        sendMessage(registerMessage);
-        System.out.println("registering");
+    public boolean reconnect(String username, String password) {
+        sendMessage("RECONNECT " + username+ " " + password);
+        System.out.println("Attempting reconnect...");
         lock.lock();
         try {
             responseReceived = false;
-            System.out.println(1);
             while (!responseReceived) {
-                System.out.println(2);
-                condition.await();  // 等待服务器的响应
+                condition.await();
             }
-            System.out.println(3);
-            return registerResult;
+            return reconnectResult; // 如果服务器回复成功，则恢复状态
         } catch (InterruptedException e) {
             e.printStackTrace();
             return false;
